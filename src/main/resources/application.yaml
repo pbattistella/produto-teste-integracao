@@ -1,0 +1,20 @@
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    username: postgres
+    password: PBattistella2024
+    url: jdbc:postgresql://localhost:5432/produtos_mockito_db
+    platform: postgres
+    initialization-mode: always
+    continue-on-error: true
+  jpa:
+    open-in-view: false
+    show-sql: false
+    generate-ddl: true
+    hibernate:
+      ddl-auto: none
+    database: postgresql
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 2MB
