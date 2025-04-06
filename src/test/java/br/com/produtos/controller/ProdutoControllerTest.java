@@ -355,7 +355,6 @@ public class ProdutoControllerTest extends AbstractIntegrationTest {
             .then()
                 .statusCode(204);
 
-        // Passo 3: tentar buscar novamente e esperar erro 404
         given()
             .spec(specification)
                 .contentType(TestConfig.CONTENT_TYPE_JSON)
