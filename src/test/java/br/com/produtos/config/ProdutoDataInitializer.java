@@ -2,8 +2,6 @@ package br.com.produtos.config;
 
 import br.com.produtos.model.Produto;
 import br.com.produtos.repository.ProdutoRepository;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,9 +14,6 @@ public class ProdutoDataInitializer {
 
     @Autowired
     private ProdutoRepository repository;
-
-    @PersistenceContext
-    private EntityManager entityManager;
 
     public ProdutoDataInitializer(ProdutoRepository repository) {
         this.repository = repository;
