@@ -7,6 +7,7 @@
 - jUnit
 - Mockito
 - TestContainer / Docker
+- SonarQube
 
 # Branches 
 - Branch main - sem testes
