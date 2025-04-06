@@ -7,6 +7,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Date;
 
 @Getter
 @Setter
@@ -27,5 +28,5 @@ public class Produto {
     private Boolean ativo = true;
 
     @Column(name = "data_criacao")
-    private LocalDateTime dataCriacao = LocalDateTime.now();
+    private Date dataCriacao = new Date();
 }

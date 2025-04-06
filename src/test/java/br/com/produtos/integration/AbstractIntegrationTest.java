@@ -1,27 +1,42 @@
 package br.com.produtos.integration;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.context.ApplicationContextInitializer;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.core.env.MapPropertySource;
+import org.springframework.test.context.ContextConfiguration;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.lifecycle.Startables;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@ActiveProfiles("test")
-public abstract class AbstractIntegrationTest {
+import java.util.Map;
+import java.util.stream.Stream;
 
-    @LocalServerPort
-    protected int port;
+@ContextConfiguration(initializers = AbstractIntegrationTest.Initializer.class)
+public class AbstractIntegrationTest {
 
-    @Autowired
-    protected TestRestTemplate restTemplate;
+    static class Initializer implements ApplicationContextInitializer<ConfigurableApplicationContext> {
+        static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:14.10-alpine3.19");
 
-    @Autowired
-    protected JdbcTemplate jdbcTemplate;
+        private static void startContainers() {
+            Startables.deepStart(Stream.of(postgres)).join();
+        }
 
-    protected String baseUrl(String path) {
-        return "http://localhost:" + port + path;
+        private static Map<String, String> createConnectionConfiguration() {
+            return Map.of(
+                    "spring.datasource.url", postgres.getJdbcUrl(),
+                    "spring.datasource.username", postgres.getUsername(),
+                    "spring.datasource.password", postgres.getPassword()
+            );
+        }
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        @Override
+        public void initialize(ConfigurableApplicationContext applicationContext) {
+            startContainers();
+            var environment = applicationContext.getEnvironment();
+            var testcontainers = new MapPropertySource(
+                    "testcontainers",
+                    (Map) createConnectionConfiguration());
+            environment.getPropertySources().addFirst(testcontainers);
+        }
     }
-
 }

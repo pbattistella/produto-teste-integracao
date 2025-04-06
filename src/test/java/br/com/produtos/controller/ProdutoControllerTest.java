@@ -1,179 +1,368 @@
 package br.com.produtos.controller;
 
+import br.com.produtos.config.TestConfig;
 import br.com.produtos.integration.AbstractIntegrationTest;
 import br.com.produtos.model.Produto;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import br.com.produtos.util.PageResponse;
+import io.restassured.builder.RequestSpecBuilder;
+import io.restassured.filter.log.LogDetail;
+import io.restassured.filter.log.RequestLoggingFilter;
+import io.restassured.filter.log.ResponseLoggingFilter;
+import io.restassured.specification.RequestSpecification;
+import org.junit.jupiter.api.*;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.ResponseEntity;
-import org.springframework.http.*;
+import org.testcontainers.shaded.com.fasterxml.jackson.databind.DeserializationFeature;
+import org.testcontainers.shaded.com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.io.IOException;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertEquals;
+import static io.restassured.RestAssured.given;
+import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class ProdutoControllerTest extends AbstractIntegrationTest {
 
-    private static final String PATH_PRODUTO = "/api/produto/";
+    private static ObjectMapper objectMapper;
 
-    @BeforeEach
-    void setup() {
-        createProduto("Notebook Dell", "Notebook com 16GB RAM e SSD 512GB", new BigDecimal("4500.00"), true);
-        createProduto("Mouse Logitech", "Mouse sem fio ergonômico", new BigDecimal("150.00"), true);
-        createProduto("Teclado Mecânico", "Teclado mecânico com RGB", new BigDecimal("300.00"), true);
+    public static final String URL_PRODUTO = "/api/produto/";
+
+    @BeforeAll
+    public static void setup() {
+        objectMapper = new ObjectMapper();
+        objectMapper = new ObjectMapper();
+        objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     }
 
-    @AfterEach
-    void cleanUp() {
-        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
-                baseUrl(PATH_PRODUTO),
-                HttpMethod.GET,
-                null,
-                new ParameterizedTypeReference<>() {}
-        );
-
-        List<Map<String, Object>> content = (List<Map<String, Object>>) response.getBody().get("content");
-
-        for (Map<String, Object> produto : content) {
-            Long id = ((Number) produto.get("id")).longValue();
-            restTemplate.delete(baseUrl(PATH_PRODUTO + id));
-        }
-    }
-
-    private void createProduto(String nome, String descricao, BigDecimal preco, boolean ativo) {
+    private Produto createProduto(String nome, String descricao, BigDecimal preco, boolean ativo) {
         Produto produto = new Produto();
         produto.setNome(nome);
         produto.setDescricao(descricao);
         produto.setPreco(preco);
         produto.setAtivo(ativo);
+        return produto;
+    }
 
-        ResponseEntity<Produto> response = restTemplate.postForEntity(baseUrl(PATH_PRODUTO), produto, Produto.class);
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    private RequestSpecification criandoSpecification(String url) {
+        return new RequestSpecBuilder()
+            .addHeader(TestConfig.HEADER_PARAM_CONTENT_TYPE, TestConfig.CONTENT_TYPE_JSON)
+            .addHeader(TestConfig.HEADER_PARAM_ACCEPT, TestConfig.HEADER_PARAM_ACCEPT_ALL)
+            // usar addParam para filtros
+            //.addParam("preco", preco)
+            .setBasePath(url)
+            .setPort(TestConfig.SERVER_PORT)
+            .addFilter(new RequestLoggingFilter(LogDetail.ALL))
+            .addFilter(new ResponseLoggingFilter(LogDetail.ALL))
+            .build();
     }
 
     @Test
-    @DisplayName("Deve listar todos os produtos")
-    void deveListarProdutos() {
-        ParameterizedTypeReference<Map<String, Object>> typeRef =
-                new ParameterizedTypeReference<>() {};
+    @Order(1)
+    @DisplayName("Criando produto 1")
+    public void createProduto1Test() throws IOException {
 
-        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
-                baseUrl(PATH_PRODUTO),
-                HttpMethod.GET,
-                null,
-                typeRef
-        );
+        var newProduto = createProduto("Notebook Dell", "Notebook com 16GB RAM e SSD 512GB", new BigDecimal("4500.00"), true);
 
-        List<Map<String, Object>> content = (List<Map<String, Object>>) response.getBody().get("content");
+       var specification = criandoSpecification(URL_PRODUTO);
 
-        assertEquals(3, content.size());
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        var content =
+            given()
+                    .spec(specification)
+                    .contentType(TestConfig.CONTENT_TYPE_JSON)
+                    .body(newProduto)
+                .when()
+                    .post()
+                .then()
+                    .statusCode(201)
+                    .extract()
+                    .body()
+                    .asString();
+
+        var produto = objectMapper.readValue(content, Produto.class);
+
+        assertNotNull(produto.getId());
+        assertNotNull(produto.getNome());
+        assertNotNull(produto.getDescricao());
+        assertNotNull(produto.getPreco());
+        assertNotNull(produto.getAtivo());
+
+        assertTrue(produto.getId() > 0);
+
+        assertEquals(produto.getNome(), newProduto.getNome());
+        assertEquals(produto.getDescricao(), newProduto.getDescricao());
+        assertEquals(produto.getPreco(), newProduto.getPreco());
+        assertEquals(produto.getAtivo(), newProduto.getAtivo());
     }
 
     @Test
-    @DisplayName("Deve buscar produto por ID")
-    void deveBuscarProdutoPorId() {
+    @Order(2)
+    @DisplayName("Criando produto 2")
+    public void createProduto2Test() throws IOException {
+        var newProduto = createProduto("Mouse Logitech", "Mouse sem fio ergonômico", new BigDecimal("150.00"), true);
 
-        ResponseEntity<Map<String, Object>> responseAll = restTemplate.exchange(
-                baseUrl(PATH_PRODUTO),
-                HttpMethod.GET,
-                null,
-                new ParameterizedTypeReference<>() {}
-        );
+        var specification = criandoSpecification(URL_PRODUTO);
 
-        List<Map<String, Object>> content = (List<Map<String, Object>>) responseAll.getBody().get("content");
+        var content =
+            given()
+                    .spec(specification)
+                    .contentType(TestConfig.CONTENT_TYPE_JSON)
+                .body(newProduto)
+                .when()
+                    .post()
+                .then()
+                    .statusCode(201)
+                    .extract()
+                    .body()
+                    .asString();
 
-        Map<String, Object> produtoMap = content.get(0);
-        Long id = ((Number) produtoMap.get("id")).longValue();
+        var produto = objectMapper.readValue(content, Produto.class);
 
-        ResponseEntity<Produto> response = restTemplate.getForEntity(baseUrl(PATH_PRODUTO + "/" + id), Produto.class);
+        assertNotNull(produto.getId());
+        assertNotNull(produto.getNome());
+        assertNotNull(produto.getDescricao());
+        assertNotNull(produto.getPreco());
+        assertNotNull(produto.getAtivo());
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getId()).isEqualTo(id);
+        assertTrue(produto.getId() > 0);
+
+        assertEquals(produto.getNome(), newProduto.getNome());
+        assertEquals(produto.getDescricao(), newProduto.getDescricao());
+        assertEquals(produto.getPreco(), newProduto.getPreco());
+        assertEquals(produto.getAtivo(), newProduto.getAtivo());
     }
 
     @Test
-    @DisplayName("Deve criar novo produto")
-    void deveCriarProduto() {
-        Produto novo = new Produto();
-        novo.setNome("Monitor LG");
-        novo.setDescricao("Monitor 24 polegadas");
-        novo.setPreco(new BigDecimal("900.00"));
-        novo.setAtivo(true);
+    @Order(3)
+    @DisplayName("Criando produto 3")
+    public void createProduto3Test() throws IOException {
+        var newProduto = createProduto("Teclado Mecânico", "Teclado mecânico com RGB", new BigDecimal("300.00"), true);
 
-        ResponseEntity<Produto> response = restTemplate.postForEntity(baseUrl(PATH_PRODUTO), novo, Produto.class);
+        var specification = criandoSpecification(URL_PRODUTO);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getId()).isNotNull();
+        var content =
+            given()
+                .spec(specification)
+                    .contentType(TestConfig.CONTENT_TYPE_JSON)
+                    .body(newProduto)
+                .when()
+                    .post()
+                .then()
+                    .statusCode(201)
+                    .extract()
+                    .body()
+                    .asString();
+
+        var produto = objectMapper.readValue(content, Produto.class);
+
+        assertNotNull(produto.getId());
+        assertNotNull(produto.getNome());
+        assertNotNull(produto.getDescricao());
+        assertNotNull(produto.getPreco());
+        assertNotNull(produto.getAtivo());
+
+        assertTrue(produto.getId() > 0);
+
+        assertEquals(produto.getNome(), newProduto.getNome());
+        assertEquals(produto.getDescricao(), newProduto.getDescricao());
+        assertEquals(produto.getPreco(), newProduto.getPreco());
+        assertEquals(produto.getAtivo(), newProduto.getAtivo());
     }
 
     @Test
-    @DisplayName("Deve atualizar um produto existente")
-    void deveAtualizarProduto() {
-        ResponseEntity<Map<String, Object>> responseAll = restTemplate.exchange(
-                baseUrl(PATH_PRODUTO),
-                HttpMethod.GET,
-                null,
-                new ParameterizedTypeReference<>() {}
-        );
+    @Order(4)
+    @DisplayName("Buscando todos os produtos")
+    public void findAllTest() throws IOException {
+        var specification = criandoSpecification(URL_PRODUTO);
 
-        List<Map<String, Object>> content = (List<Map<String, Object>>) responseAll.getBody().get("content");
+        var content =
+            given()
+                .spec(specification)
+                    .contentType(TestConfig.CONTENT_TYPE_JSON)
+                .when()
+                    .get()
+                .then()
+                    .statusCode(200)
+                    .extract()
+                    .body()
+                    .asString();
 
-        Map<String, Object> produtoMap = content.get(1); // Mouse Logitech
-        Long id = ((Number) produtoMap.get("id")).longValue();
+        var typeFactory = objectMapper.getTypeFactory();
+        var javaType = typeFactory.constructParametricType(PageResponse.class, Produto.class);
 
-        Produto produtoAtualizado = new Produto();
-        produtoAtualizado.setId(id);
-        produtoAtualizado.setNome("Mouse Logitech MX");
-        produtoAtualizado.setDescricao("Mouse premium sem fio");
-        produtoAtualizado.setPreco(new BigDecimal(produtoMap.get("preco").toString()));
-        produtoAtualizado.setAtivo((Boolean) produtoMap.get("ativo"));
-        produtoAtualizado.setDataCriacao(LocalDateTime.parse(produtoMap.get("dataCriacao").toString()));
+        PageResponse<Produto> pageResponse = objectMapper.readValue(content, javaType);
 
-        HttpEntity<Produto> request = new HttpEntity<>(produtoAtualizado);
+        List<Produto> produtos = pageResponse.getContent();
 
-        ResponseEntity<Produto> response = restTemplate.exchange(
-                baseUrl(PATH_PRODUTO + "/" + id),
-                HttpMethod.PUT,
-                request,
-                Produto.class
-        );
+        assertNotNull(produtos);
+        assertFalse(produtos.isEmpty());
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getNome()).isEqualTo("Mouse Logitech MX");
-        assertThat(response.getBody().getDescricao()).isEqualTo("Mouse premium sem fio");
+        var produto = produtos.get(0);
+        assertNotNull(produto.getId());
+        assertNotNull(produto.getNome());
+        assertNotNull(produto.getDescricao());
+        assertNotNull(produto.getPreco());
+        assertNotNull(produto.getAtivo());
     }
 
     @Test
-    @DisplayName("Deve deletar um produto existente")
-    void deveDeletarProduto() {
-        ResponseEntity<Map<String, Object>> responseAll = restTemplate.exchange(
-                baseUrl(PATH_PRODUTO),
-                HttpMethod.GET,
-                null,
-                new ParameterizedTypeReference<>() {}
-        );
+    @Order(5)
+    @DisplayName("Buscando produto por ID")
+    public void findByIdTest() throws IOException {
+        var specification = criandoSpecification(URL_PRODUTO);
 
-        List<Map<String, Object>> content = (List<Map<String, Object>>) responseAll.getBody().get("content");
-        assertThat(content).hasSizeGreaterThanOrEqualTo(3);
+        var content =
+            given()
+                .spec(specification)
+                    .contentType(TestConfig.CONTENT_TYPE_JSON)
+                .when()
+                    .get()
+                .then()
+                    .statusCode(200)
+                    .extract()
+                    .body()
+                    .asString();
 
-        Map<String, Object> produtoMap = content.get(2); // por exemplo: Teclado Mecânico
-        Long id = ((Number) produtoMap.get("id")).longValue();
+        var typeFactory = objectMapper.getTypeFactory();
+        var javaType = typeFactory.constructParametricType(PageResponse.class, Produto.class);
 
-        restTemplate.delete(baseUrl(PATH_PRODUTO + id)); // evita o duplo "/"
+        PageResponse<Produto> pageResponse = objectMapper.readValue(content, javaType);
+        List<Produto> produtos = pageResponse.getContent();
 
-        ResponseEntity<Produto> response = restTemplate.getForEntity(baseUrl(PATH_PRODUTO + id), Produto.class);
+        assertNotNull(produtos);
+        assertFalse(produtos.isEmpty());
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        var produtoEsperado = produtos.get(0);
+        Long id = produtoEsperado.getId();
+
+        var contentById =
+            given()
+                .spec(specification)
+                    .contentType(TestConfig.CONTENT_TYPE_JSON)
+                .when()
+                    .get("/{id}", id)
+                .then()
+                    .statusCode(200)
+                    .extract()
+                    .body()
+                    .asString();
+
+        Produto produto = objectMapper.readValue(contentById, Produto.class);
+
+        assertNotNull(produto);
+        assertEquals(produtoEsperado.getId(), produto.getId());
+        assertEquals(produtoEsperado.getNome(), produto.getNome());
+        assertEquals(produtoEsperado.getDescricao(), produto.getDescricao());
+        assertEquals(produtoEsperado.getPreco(), produto.getPreco());
+        assertEquals(produtoEsperado.getAtivo(), produto.getAtivo());
+    }
+
+    @Test
+    @Order(6)
+    @DisplayName("Atualizando produto existente")
+    public void updateProdutoTest() throws IOException {
+        var specification = criandoSpecification(URL_PRODUTO);
+
+        var content =
+            given()
+                .spec(specification)
+                    .contentType(TestConfig.CONTENT_TYPE_JSON)
+                .when()
+                    .get()
+                .then()
+                    .statusCode(200)
+                    .extract()
+                    .body()
+                    .asString();
+
+        var typeFactory = objectMapper.getTypeFactory();
+        var javaType = typeFactory.constructParametricType(PageResponse.class, Produto.class);
+
+        PageResponse<Produto> pageResponse = objectMapper.readValue(content, javaType);
+        List<Produto> produtos = pageResponse.getContent();
+
+        assertNotNull(produtos);
+        assertFalse(produtos.isEmpty());
+
+        var produtoOriginal = produtos.get(0);
+        Long id = produtoOriginal.getId();
+
+        produtoOriginal.setNome("Novo notebook Dell");
+        produtoOriginal.setDescricao("Notebook com 32GB RAM e SSD 1TB");
+        produtoOriginal.setPreco(new BigDecimal("7500.00"));
+        produtoOriginal.setAtivo(false);
+
+        // Passo 3: fazer o PUT /{id}
+        var updatedContent =
+            given()
+                .spec(specification)
+                    .contentType(TestConfig.CONTENT_TYPE_JSON)
+                    .body(produtoOriginal)
+                .when()
+                    .put("/{id}", id)
+                .then()
+                    .statusCode(200)
+                    .extract()
+                    .body()
+                    .asString();
+
+        Produto produtoAtualizado = objectMapper.readValue(updatedContent, Produto.class);
+
+        assertNotNull(produtoAtualizado);
+        assertEquals(id, produtoAtualizado.getId());
+        assertEquals(produtoOriginal.getNome(), produtoAtualizado.getNome());
+        assertEquals(produtoOriginal.getDescricao(), produtoAtualizado.getDescricao());
+        assertEquals(produtoOriginal.getPreco(), produtoAtualizado.getPreco());
+        assertFalse(produtoAtualizado.getAtivo());
+    }
+
+    @Test
+    @Order(7)
+    @DisplayName("Deletando produto por ID")
+    public void deleteProdutoTest() throws IOException {
+        var specification = criandoSpecification(URL_PRODUTO);
+
+        var allContent =
+            given()
+                .spec(specification)
+                    .contentType(TestConfig.CONTENT_TYPE_JSON)
+                .when()
+                    .get()
+                .then()
+                    .statusCode(200)
+                    .extract()
+                    .body()
+                    .asString();
+
+        var typeFactory = objectMapper.getTypeFactory();
+        var javaType = typeFactory.constructParametricType(PageResponse.class, Produto.class);
+
+        PageResponse<Produto> pageResponse = objectMapper.readValue(allContent, javaType);
+        List<Produto> produtos = pageResponse.getContent();
+
+        assertNotNull(produtos);
+        assertFalse(produtos.isEmpty());
+
+        var produtoParaDeletar = produtos.get(produtos.size() - 1);
+        Long id = produtoParaDeletar.getId();
+
+        given()
+            .spec(specification)
+                .contentType(TestConfig.CONTENT_TYPE_JSON)
+            .when()
+                .delete("/{id}", id)
+            .then()
+                .statusCode(204);
+
+        // Passo 3: tentar buscar novamente e esperar erro 404
+        given()
+            .spec(specification)
+                .contentType(TestConfig.CONTENT_TYPE_JSON)
+            .when()
+                .get("/{id}", id)
+            .then()
+                .statusCode(404);
     }
 }
