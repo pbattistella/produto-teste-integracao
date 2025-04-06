@@ -26,8 +26,8 @@ public class ProdutoController {
     }
 
     @PostMapping("/")
-    public Produto create(@RequestBody Produto produto) {
-        return service.create(produto);
+    public ResponseEntity<Produto> create(@RequestBody Produto produto) {
+        return ResponseEntity.status(201).body(service.create(produto));
     }
 
     @PutMapping("/{id}")
@@ -36,9 +36,8 @@ public class ProdutoController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(@PathVariable(value = "id") Long id) {
+    public ResponseEntity<Void> delete(@PathVariable(value = "id") Long id) {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }
-
 }

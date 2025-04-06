@@ -1,4 +1,8 @@
 spring:
+  config:
+    activate:
+      on-profile: prod
+      #Para rodar --spring.profiles.active=prod
   datasource:
     driver-class-name: org.postgresql.Driver
     username: postgres
