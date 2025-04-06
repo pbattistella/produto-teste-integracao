@@ -294,7 +294,6 @@ public class ProdutoControllerTest extends AbstractIntegrationTest {
         produtoOriginal.setPreco(new BigDecimal("7500.00"));
         produtoOriginal.setAtivo(false);
 
-        // Passo 3: fazer o PUT /{id}
         var updatedContent =
             given()
                 .spec(specification)
